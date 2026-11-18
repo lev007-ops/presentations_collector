@@ -38,3 +38,24 @@ for r in (public.router, auth.router, participant.router, staff.router, admin.ro
 @app.get("/api/health")
 def health():
     return {"ok": True}
+
+
+# ---------------------------------------------------------------- frontend ---
+
+_static = get_settings().static_dir
+if _static and (_static / "index.html").exists():
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    _static = _static.resolve()
+    app.mount("/assets", StaticFiles(directory=_static / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str):
+        if path.startswith("api/"):
+            raise HTTPException(404, "Not Found")
+        candidate = (_static / path).resolve()
+        if path and candidate.is_file() and candidate.is_relative_to(_static):
+            return FileResponse(candidate)
+        return FileResponse(_static / "index.html", headers={"Cache-Control": "no-cache"})

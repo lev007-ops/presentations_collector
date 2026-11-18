@@ -20,6 +20,9 @@ class Settings(BaseSettings):
 
     max_upload_mb: int = 300
 
+    # Собранный фронтенд (в Docker-образе). Если папки нет — отдаётся только API.
+    static_dir: Path | None = None
+
     @property
     def database_url(self) -> str:
         return f"sqlite:///{self.data_dir / 'app.db'}"
