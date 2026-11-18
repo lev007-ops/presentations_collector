@@ -13,7 +13,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     DATA_DIR=/data \
-    STATIC_DIR=/app/static
+    STATIC_DIR=/app/static \
+    PORT=8000
 
 RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin app
 
@@ -32,4 +33,4 @@ EXPOSE 8000
 # Стартуем от root только чтобы поправить владельца тома /data (в старых томах файлы
 # принадлежат root), затем сбрасываем привилегии: приложение работает от пользователя app.
 # SQLite — поэтому один воркер.
-CMD ["sh", "-c", "chown -R app:app /data && exec setpriv --reuid=app --regid=app --init-groups sh -c \"alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'\""]
+CMD ["sh", "-c", "chown -R app:app /data && exec setpriv --reuid=app --regid=app --init-groups sh -c \"alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'\""]
