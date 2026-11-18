@@ -112,7 +112,9 @@ function PasswordModal({ open, onClose }) {
     setLoading(true)
     setError(null)
     try {
-      await api('/me/password', { method: 'PUT', body: form, auth: 'participant' })
+      const res = await api('/me/password', { method: 'PUT', body: form, auth: 'participant' })
+      // старые токены после смены пароля недействительны — сохраняем новый
+      setToken('participant', res.access_token)
       toast.success('Пароль изменён')
       setForm({ old_password: '', new_password: '' })
       onClose()

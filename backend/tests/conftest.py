@@ -8,6 +8,8 @@ import pytest
 
 _DATA = Path(tempfile.mkdtemp(prefix="pc-test-"))
 os.environ["DATA_DIR"] = str(_DATA)
+os.environ["SECRET_KEY"] = "test-secret-key-0123456789abcdef0123456789"
+os.environ["MAX_UNPACKED_MB"] = "50"
 os.environ["ADMIN_LOGIN"] = "root"
 os.environ["ADMIN_PASSWORD"] = "rootpass"
 os.environ["REGISTRATION_CODE"] = "secret"

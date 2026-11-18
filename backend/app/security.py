@@ -27,10 +27,26 @@ def verify_password(password: str, stored: str) -> bool:
     return hmac.compare_digest(dk.hex(), digest)
 
 
-def create_token(subject_id: int, kind: str) -> str:
+# Хеш случайного пароля: сверяемся с ним, когда пользователь не найден,
+# чтобы время ответа не выдавало, существует ли логин/почта.
+_DUMMY_HASH = hash_password(secrets.token_hex(16))
+
+
+def verify_password_or_dummy(password: str, stored: str | None) -> bool:
+    if stored is None:
+        verify_password(password, _DUMMY_HASH)
+        return False
+    return verify_password(password, stored)
+
+
+def create_token(subject_id: int, kind: str, version: int = 0) -> str:
+    """version — token_version пользователя; при смене пароля он растёт и старые токены перестают работать."""
     s = get_settings()
     now = datetime.now(timezone.utc)
-    payload = {"sub": str(subject_id), "kind": kind, "iat": now, "exp": now + timedelta(hours=s.token_ttl_hours)}
+    payload = {
+        "sub": str(subject_id), "kind": kind, "ver": version,
+        "iat": now, "exp": now + timedelta(hours=s.token_ttl_hours),
+    }
     return jwt.encode(payload, s.secret_key, algorithm="HS256")
 
 

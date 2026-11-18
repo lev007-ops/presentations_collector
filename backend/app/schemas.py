@@ -25,17 +25,17 @@ class Token(BaseModel):
 class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=128)
-    code: str
+    code: str = Field(max_length=200)
 
 
 class LoginIn(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=128)
 
 
 class StaffLoginIn(BaseModel):
-    login: str
-    password: str
+    login: str = Field(max_length=100)
+    password: str = Field(max_length=128)
 
 
 class SectionOut(BaseModel):
@@ -99,7 +99,7 @@ class ProfileIn(BaseModel):
 
 
 class PasswordChangeIn(BaseModel):
-    old_password: str
+    old_password: str = Field(max_length=128)
     new_password: str = Field(min_length=6, max_length=128)
 
 
@@ -134,9 +134,12 @@ class StaffOut(BaseModel):
     section_name: str | None
 
 
+STAFF_PASSWORD_MIN = 10
+
+
 class StaffCreate(BaseModel):
     login: str = Field(min_length=3, max_length=100, pattern=r"^[A-Za-z0-9_.\-]+$")
-    password: str = Field(min_length=6, max_length=128)
+    password: str = Field(min_length=STAFF_PASSWORD_MIN, max_length=128)
     full_name: str | None = None
     role: str = Field(pattern=r"^(superuser|organizer)$")
     section_id: int | None = None
@@ -144,7 +147,7 @@ class StaffCreate(BaseModel):
 
 class StaffUpdate(BaseModel):
     full_name: str | None = None
-    password: str | None = Field(default=None, min_length=6, max_length=128)
+    password: str | None = Field(default=None, min_length=STAFF_PASSWORD_MIN, max_length=128)
     role: str | None = Field(default=None, pattern=r"^(superuser|organizer)$")
     section_id: int | None = None
 

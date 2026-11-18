@@ -63,6 +63,9 @@ class Participant(Base):
     file_size: Mapped[int | None] = mapped_column(Integer)
     file_uploaded_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
 
+    # Растёт при смене пароля — старые токены становятся недействительными
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
     section: Mapped[Section | None] = relationship(back_populates="participants")
@@ -87,6 +90,7 @@ class Staff(Base):
     full_name: Mapped[str | None] = mapped_column(String(300))
     role: Mapped[str] = mapped_column(String(20), default=ROLE_ORGANIZER)
     section_id: Mapped[int | None] = mapped_column(ForeignKey("sections.id", ondelete="SET NULL"))
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
     section: Mapped[Section | None] = relationship()

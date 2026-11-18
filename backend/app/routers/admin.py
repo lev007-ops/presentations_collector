@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from .public import logo_url
 from .staff import section_summary
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+log = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------ stats ---
@@ -170,7 +172,8 @@ def create_merged(section_id: int, _: CurrentSuperuser, db: DB):
         result = merge_presentations(items, branding, out)
     except Exception as e:  # noqa: BLE001
         out.unlink(missing_ok=True)
-        raise HTTPException(500, f"Не удалось объединить презентации: {e}") from e
+        log.exception("Ошибка сборки объединённой презентации секции %s", sec.id)
+        raise HTTPException(500, "Не удалось объединить презентации — подробности в логах сервера") from e
 
     for old in list(sec.merged):
         remove_file(old.file_path)
@@ -246,6 +249,7 @@ def update_participant(pid: int, data: AdminParticipantUpdate, _: CurrentSuperus
         set_participant_section(db, p, data.section_id)
     if data.password:
         p.password_hash = hash_password(data.password)
+        p.token_version += 1
     db.commit()
     db.refresh(p)
     return participant_out(p)
@@ -337,6 +341,7 @@ def update_staff(sid: int, data: StaffUpdate, me: CurrentSuperuser, db: DB):
         st.full_name = data.full_name.strip() or None
     if data.password:
         st.password_hash = hash_password(data.password)
+        st.token_version += 1
     db.commit()
     db.refresh(st)
     return staff_out(st)

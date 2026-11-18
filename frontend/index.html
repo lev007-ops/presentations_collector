@@ -5,16 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Сбор презентаций</title>
-    <script>
-      // Применяем тему до рендера, чтобы не было вспышки
-      (function () {
-        try {
-          var t = localStorage.getItem('theme');
-          var dark = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (dark) document.documentElement.classList.add('dark');
-        } catch (e) {}
-      })();
-    </script>
+    <!-- Применяем тему до рендера, чтобы не было вспышки (отдельным файлом — из-за CSP) -->
+    <script src="/theme.js"></script>
   </head>
   <body>
     <div id="root"></div>
