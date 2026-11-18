@@ -1,29 +1,14 @@
 services:
-  backend:
-    build: ./backend
+  app:
+    build: .
     restart: unless-stopped
     env_file: .env
     environment:
       DATA_DIR: /data
+    ports:
+      - "0.0.0.0:${PORT:-8000}:${PORT:-8000}"
     volumes:
       - app_data:/data
 
-  caddy:
-    build: ./frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - caddy_data:/data
-      - caddy_config:/config
-
 volumes:
   app_data:
-  caddy_data:
-  caddy_config:

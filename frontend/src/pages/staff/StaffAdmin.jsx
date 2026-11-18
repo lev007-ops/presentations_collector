@@ -67,8 +67,9 @@ function StaffModal({ open, staff, onClose, onSaved }) {
           type="password"
           autoComplete="new-password"
           required={!staff}
-          minLength={6}
+          minLength={10}
           placeholder={staff ? 'Не менять' : ''}
+          hint="Не короче 10 символов"
           value={form.password || ''}
           onChange={(e) => setForm({ ...form, password: e.target.value })}
         />

@@ -13,30 +13,40 @@ bearer = HTTPBearer(auto_error=False)
 DB = Annotated[Session, Depends(get_db)]
 
 
-def _payload(creds: HTTPAuthorizationCredentials | None, kind: str) -> int:
+_EXPIRED = "Сессия истекла, войдите снова"
+
+
+def _payload(creds: HTTPAuthorizationCredentials | None, kind: str) -> tuple[int, int]:
     if creds is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Требуется вход")
     data = decode_token(creds.credentials)
     if not data or data.get("kind") != kind:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия истекла, войдите снова")
-    return int(data["sub"])
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, _EXPIRED)
+    try:
+        return int(data["sub"]), int(data.get("ver", 0))
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, _EXPIRED) from None
 
 
 def current_participant(
     db: DB, creds: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]
 ) -> Participant:
-    uid = _payload(creds, "participant")
+    uid, ver = _payload(creds, "participant")
     user = db.get(Participant, uid)
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Пользователь не найден")
+    if user.token_version != ver:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, _EXPIRED)
     return user
 
 
 def current_staff(db: DB, creds: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]) -> Staff:
-    sid = _payload(creds, "staff")
+    sid, ver = _payload(creds, "staff")
     staff = db.get(Staff, sid)
     if staff is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Пользователь не найден")
+    if staff.token_version != ver:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, _EXPIRED)
     return staff
 
 

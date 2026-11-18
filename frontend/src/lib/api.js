@@ -32,7 +32,7 @@ function errorMessage(data, status) {
         const msg = (d.msg || '').replace(/^Value error, /, '')
         if (d.type === 'value_error' && d.loc?.includes('email')) return 'Некорректная почта'
         if (d.type === 'string_too_short' && d.loc?.includes('password'))
-          return 'Пароль должен быть не короче 6 символов'
+          return `Пароль должен быть не короче ${d.ctx?.min_length ?? 6} символов`
         return msg
       })
       .join('; ')

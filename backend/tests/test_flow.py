@@ -57,9 +57,9 @@ def test_full_flow(client):
     assert client.get("/api/me/presentation", headers=tokens["a@x.ru"]).status_code == 200
 
     # организатор секции
-    r = client.post("/api/admin/staff", headers=root, json={"login": "phys", "password": "physpass", "role": "organizer", "section_id": phys["id"]})
+    r = client.post("/api/admin/staff", headers=root, json={"login": "phys", "password": "physpass-123", "role": "organizer", "section_id": phys["id"]})
     assert r.status_code == 200, r.text
-    org = auth(staff_token(client, "phys", "physpass"))
+    org = auth(staff_token(client, "phys", "physpass-123"))
     secs = client.get("/api/staff/sections", headers=org).json()
     assert [s["id"] for s in secs] == [phys["id"]] and secs[0]["uploaded_count"] == 2
     assert client.get(f"/api/staff/sections/{chem['id']}/participants", headers=org).status_code == 403
@@ -116,3 +116,78 @@ def test_full_flow(client):
     staff = client.get("/api/admin/staff", headers=root).json()
     me_id = next(x["id"] for x in staff if x["login"] == "root")
     assert client.delete(f"/api/admin/staff/{me_id}", headers=root).status_code == 400
+
+
+def _register(client, email):
+    r = client.post("/api/auth/register", json={"email": email, "password": "123456", "code": "secret"})
+    assert r.status_code == 200, r.text
+    return r.json()["access_token"]
+
+
+def test_password_change_revokes_old_tokens(client):
+    old = auth(_register(client, "rev@x.ru"))
+    other_session = auth(client.post("/api/auth/login", json={"email": "rev@x.ru", "password": "123456"}).json()["access_token"])
+    r = client.put("/api/me/password", headers=old, json={"old_password": "123456", "new_password": "654321"})
+    assert r.status_code == 200, r.text
+    new = auth(r.json()["access_token"])
+    assert client.get("/api/me", headers=new).status_code == 200
+    assert client.get("/api/me", headers=old).status_code == 401
+    assert client.get("/api/me", headers=other_session).status_code == 401
+
+
+def test_login_rate_limit(client):
+    from app import ratelimit
+
+    ratelimit.login_account.clear()
+    ratelimit.login_ip.clear()
+    _register(client, "rl@x.ru")
+    for _ in range(ratelimit.login_account.max_failures):
+        assert client.post("/api/auth/login", json={"email": "rl@x.ru", "password": "wrong"}).status_code == 401
+    # даже верный пароль не пускает, пока аккаунт заблокирован
+    r = client.post("/api/auth/login", json={"email": "rl@x.ru", "password": "123456"})
+    assert r.status_code == 429
+    assert "Retry-After" in r.headers
+    ratelimit.login_account.clear()
+    ratelimit.login_ip.clear()
+    assert client.post("/api/auth/login", json={"email": "rl@x.ru", "password": "123456"}).status_code == 200
+
+
+def test_zip_bomb_rejected(client):
+    from app.config import get_settings
+
+    tok = auth(_register(client, "bomb@x.ru"))
+    secs = client.get("/api/public/settings").json()["sections"]
+    client.put("/api/me/profile", headers=tok, json={"full_name": "Бомб Бомбов", "grade_number": 9, "grade_letter": "А", "section_id": secs[0]["id"]})
+    # сбрасываем дедлайн, выставленный в test_full_flow
+    root = auth(staff_token(client, "root", "rootpass"))
+    s = client.get("/api/admin/settings", headers=root).json()
+    s["deadline"] = None
+    client.put("/api/admin/settings", headers=root, json=s)
+
+    limit = get_settings().max_unpacked_mb * 1024 * 1024
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", "presentationml.presentation.main+xml")
+        zf.writestr("ppt/presentation.xml", "<x/>")
+        chunk = b"\0" * (64 * 1024 * 1024)
+        with zf.open("ppt/media/bomb.bin", "w", force_zip64=True) as f:
+            for _ in range(limit // len(chunk) + 1):
+                f.write(chunk)
+    r = client.post("/api/me/presentation", headers=tok, files={"file": ("b.pptx", buf.getvalue(), PPTX_CT)})
+    assert r.status_code == 400
+    assert "распакованном" in r.json()["detail"]
+
+
+def test_security_headers_and_docs(client):
+    r = client.get("/api/public/settings")
+    assert r.headers["X-Content-Type-Options"] == "nosniff"
+    assert r.headers["X-Frame-Options"] == "DENY"
+    assert "frame-ancestors 'none'" in r.headers["Content-Security-Policy"]
+    assert client.get("/api/docs").status_code == 404
+    assert client.get("/api/openapi.json").status_code == 404
+
+
+def test_staff_password_min_length(client):
+    root = auth(staff_token(client, "root", "rootpass"))
+    r = client.post("/api/admin/staff", headers=root, json={"login": "shortpw", "password": "123456", "role": "superuser"})
+    assert r.status_code == 422

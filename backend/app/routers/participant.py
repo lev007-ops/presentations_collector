@@ -5,8 +5,8 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from ..config import get_settings
 from ..deps import DB, CurrentParticipant, get_site_settings
-from ..schemas import ParticipantMe, PasswordChangeIn, ProfileIn
-from ..security import hash_password, verify_password
+from ..schemas import ParticipantMe, PasswordChangeIn, ProfileIn, Token
+from ..security import create_token, hash_password, verify_password
 from ..services.common import deadline_passed, set_participant_section
 from ..services.files import file_response, remove_file, safe_filename, save_presentation_upload
 from ..services.serializers import participant_out
@@ -31,6 +31,8 @@ def me(user: CurrentParticipant, db: DB):
 
 @router.put("/profile", response_model=ParticipantMe)
 def update_profile(data: ProfileIn, user: CurrentParticipant, db: DB):
+    if data.section_id != user.section_id and user.section_id is not None and deadline_passed(get_site_settings(db)):
+        raise HTTPException(403, "Дедлайн прошёл — сменить секцию уже нельзя, обратитесь к организаторам")
     user.full_name = data.full_name
     user.grade_number = data.grade_number
     user.grade_letter = data.grade_letter
@@ -40,13 +42,14 @@ def update_profile(data: ProfileIn, user: CurrentParticipant, db: DB):
     return _me(db, user)
 
 
-@router.put("/password")
+@router.put("/password", response_model=Token)
 def change_password(data: PasswordChangeIn, user: CurrentParticipant, db: DB):
     if not verify_password(data.old_password, user.password_hash):
         raise HTTPException(400, "Текущий пароль указан неверно")
     user.password_hash = hash_password(data.new_password)
+    user.token_version += 1  # разлогиниваем все остальные сессии
     db.commit()
-    return {"ok": True}
+    return Token(access_token=create_token(user.id, "participant", user.token_version))
 
 
 def _ensure_can_edit_file(db, user) -> None:

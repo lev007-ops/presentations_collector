@@ -39,4 +39,9 @@ def logo(db: DB):
     s = get_site_settings(db)
     if not s.logo_path or not Path(s.logo_path).exists():
         raise HTTPException(404, "Логотип не задан")
-    return FileResponse(s.logo_path, headers={"Cache-Control": "public, max-age=31536000"})
+    return FileResponse(s.logo_path, headers={
+        "Cache-Control": "public, max-age=31536000",
+        # SVG может содержать <script>: при открытии напрямую запрещаем любые скрипты
+        "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox",
+        "Content-Disposition": "inline",
+    })

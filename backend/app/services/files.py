@@ -39,17 +39,33 @@ def file_response(path: Path, filename: str, media_type: str = PPTX_MEDIA, clean
     )
 
 
+_MAX_ZIP_ENTRIES = 20_000
+_MAX_CONTENT_TYPES = 1024 * 1024
+
+
 def _check_pptx(path: Path) -> None:
-    """Проверяем, что это настоящий .pptx (OOXML-презентация)."""
+    """Проверяем, что это настоящий .pptx (OOXML-презентация) и не zip-бомба.
+
+    Объявленные в заголовках размеры zipfile соблюдает при распаковке (читает не больше
+    file_size и сверяет CRC), поэтому ограничение по ним надёжно.
+    """
+    max_unpacked = get_settings().max_unpacked_mb * 1024 * 1024
     try:
         with zipfile.ZipFile(path) as zf:
-            names = set(zf.namelist())
+            infos = zf.infolist()
+            if len(infos) > _MAX_ZIP_ENTRIES:
+                raise HTTPException(400, "Слишком много файлов внутри презентации")
+            if sum(i.file_size for i in infos) > max_unpacked:
+                raise HTTPException(400, "Презентация слишком большая в распакованном виде")
+            names = {i.filename: i for i in infos}
             if "[Content_Types].xml" not in names or "ppt/presentation.xml" not in names:
+                raise ValueError
+            if names["[Content_Types].xml"].file_size > _MAX_CONTENT_TYPES:
                 raise ValueError
             ct = zf.read("[Content_Types].xml").decode("utf-8", "ignore")
             if "presentationml.presentation.main+xml" not in ct:
                 raise ValueError
-    except (zipfile.BadZipFile, ValueError, KeyError):
+    except (zipfile.BadZipFile, ValueError, KeyError, EOFError, NotImplementedError):
         raise HTTPException(400, "Файл не является презентацией PowerPoint (.pptx)")
 
 
